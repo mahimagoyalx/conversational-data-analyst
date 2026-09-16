@@ -5,7 +5,12 @@ import { z } from "zod";
  * IMPORTANT: A QueryPlan must NEVER contain SQL.
  */
 
-export const DatasetSchema = z.enum(["onboarding", "transactions"]);
+export const DatasetSchema = z.enum([
+  "onboarding",
+  "transactions",
+  "branches",
+  "customers",
+]);
 export type Dataset = z.infer<typeof DatasetSchema>;
 
 export const MetricSchema = z.enum([
@@ -100,16 +105,75 @@ export const QueryPlanSchema = QueryPlanBaseSchema.superRefine((plan, ctx) => {
 
   const isOnboarding = dataset === "onboarding";
   const isTransactions = dataset === "transactions";
+  const isBranches = dataset === "branches";
+  const isCustomers = dataset === "customers";
 
-  // Dataset / metric combinations
-  if (metric === "count" || metric === "rejection_rate") {
-    if (!isOnboarding) {
+  if (isBranches) {
+    if (metric !== "count") {
       ctx.addIssue({
         code: "custom",
-        message: `Metric "${metric}" only applies to the onboarding dataset`,
+        message: "The branches dataset only supports the count metric",
         path: ["metric"],
       });
     }
+    if (groupBy || filters || dateGroupBy || limit !== undefined || plan.dateRange) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Branch count is an aggregate KPI and does not support grouping or filters",
+        path: groupBy ? ["groupBy"] : ["filters"],
+      });
+    }
+  }
+
+  if (isCustomers) {
+    if (metric !== "count") {
+      ctx.addIssue({
+        code: "custom",
+        message: "The customers dataset only supports the count metric",
+        path: ["metric"],
+      });
+    }
+    if (dateGroupBy || limit !== undefined || plan.dateRange) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Customer count does not support date grouping, date range, or limit",
+        path: ["dateGroupBy"],
+      });
+    }
+    if (hasFilter(filters, "statuses")) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Status filters only apply to the onboarding dataset",
+        path: ["filters", "statuses"],
+      });
+    }
+    if (groupBy?.some((dimension) => dimension !== "segment" && dimension !== "branch")) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Customer count grouping only supports segment or branch",
+        path: ["groupBy"],
+      });
+    }
+  }
+
+  // Dataset / metric combinations
+  if (metric === "count") {
+    if (!isOnboarding && !isBranches && !isCustomers) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          'Metric "count" only applies to the onboarding, branches, or customers datasets',
+        path: ["metric"],
+      });
+    }
+  }
+
+  if (metric === "rejection_rate" && !isOnboarding) {
+    ctx.addIssue({
+      code: "custom",
+      message: 'Metric "rejection_rate" only applies to the onboarding dataset',
+      path: ["metric"],
+    });
   }
 
   if (metric === "sum" || metric === "average") {
@@ -131,27 +195,27 @@ export const QueryPlanSchema = QueryPlanBaseSchema.superRefine((plan, ctx) => {
     });
   }
 
-  if (groupBy?.includes("branch") && !isOnboarding) {
+  if (groupBy?.includes("branch") && !isOnboarding && !isCustomers) {
     ctx.addIssue({
       code: "custom",
-      message: "Branch grouping only applies to the onboarding dataset",
+      message: "Branch grouping only applies to onboarding or customers",
       path: ["groupBy"],
     });
   }
 
-  if (groupBy?.includes("segment") && !isOnboarding) {
+  if (groupBy?.includes("segment") && !isOnboarding && !isCustomers) {
     ctx.addIssue({
       code: "custom",
-      message: "Segment grouping only applies to the onboarding dataset",
+      message: "Segment grouping only applies to onboarding or customers",
       path: ["groupBy"],
     });
   }
 
   // Filter rules
-  if (hasFilter(filters, "segments") && !isOnboarding) {
+  if (hasFilter(filters, "segments") && !isOnboarding && !isCustomers) {
     ctx.addIssue({
       code: "custom",
-      message: "Segment filters only apply to the onboarding dataset",
+      message: "Segment filters only apply to the onboarding or customers datasets",
       path: ["filters", "segments"],
     });
   }

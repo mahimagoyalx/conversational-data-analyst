@@ -116,6 +116,24 @@ describe("QueryPlan contract", () => {
       });
     });
 
+    it("allows branch and customer inventory counts", () => {
+      expect(parseQueryPlan({ dataset: "branches", metric: "count" })).toEqual({
+        dataset: "branches",
+        metric: "count",
+      });
+      expect(
+        parseQueryPlan({
+          dataset: "customers",
+          metric: "count",
+          filters: { segments: ["Retail"] },
+        }),
+      ).toEqual({
+        dataset: "customers",
+        metric: "count",
+        filters: { segments: ["Retail"] },
+      });
+    });
+
     it("allows aggregate transaction sum without grouping", () => {
       expect(
         parseQueryPlan({
@@ -149,7 +167,7 @@ describe("QueryPlan contract", () => {
     it("rejects count on transactions", () => {
       expectInvalid(
         { dataset: "transactions", metric: "count" },
-        'Metric "count" only applies to the onboarding dataset',
+        'Metric "count" only applies to the onboarding, branches, or customers datasets',
       );
     });
 
@@ -169,7 +187,7 @@ describe("QueryPlan contract", () => {
           metric: "average",
           filters: { segments: ["Retail"] },
         },
-        "Segment filters only apply to the onboarding dataset",
+        "Segment filters only apply to the onboarding or customers datasets",
       );
     });
 
@@ -220,7 +238,7 @@ describe("QueryPlan contract", () => {
           metric: "sum",
           groupBy: ["branch"],
         },
-        "Branch grouping only applies to the onboarding dataset",
+        "Branch grouping only applies to onboarding or customers",
       );
     });
 
@@ -231,7 +249,7 @@ describe("QueryPlan contract", () => {
           metric: "sum",
           groupBy: ["segment"],
         },
-        "Segment grouping only applies to the onboarding dataset",
+        "Segment grouping only applies to onboarding or customers",
       );
     });
 

@@ -78,7 +78,7 @@ JOIN branches AS b ON b.id = oa.branch_id
 WHERE 1 = 1
   ${DATE_RANGE_APPLICATION}
 GROUP BY b.id, b.name
-ORDER BY b.name`.trim(),
+ORDER BY value DESC, b.name`.trim(),
 
   transactionsTotalValue: `
 SELECT SUM(t.amount) AS value
@@ -110,6 +110,30 @@ WHERE 1 = 1
 GROUP BY c.id, c.name
 ORDER BY value DESC, c.name
 LIMIT ?`.trim(),
+
+  branchCount: `
+SELECT COUNT(*) AS value
+FROM branches`.trim(),
+
+  customerCountOverall: `
+SELECT COUNT(*) AS value
+FROM customers AS c
+WHERE c.segment IN (SELECT value FROM json_each(?))`.trim(),
+
+  customerCountBySegment: `
+SELECT c.segment AS label, COUNT(*) AS value
+FROM customers AS c
+WHERE c.segment IN (SELECT value FROM json_each(?))
+GROUP BY c.segment
+ORDER BY c.segment`.trim(),
+
+  customerCountByBranch: `
+SELECT b.name AS label, COUNT(*) AS value
+FROM customers AS c
+JOIN branches AS b ON b.id = c.branch_id
+WHERE c.segment IN (SELECT value FROM json_each(?))
+GROUP BY b.id, b.name
+ORDER BY b.name`.trim(),
 } as const;
 
 const TRUSTED_SQL = new Set<string>(Object.values(SQL_TEMPLATES));
@@ -146,6 +170,36 @@ function assertSafeSelect(sql: string): void {
 function selectTemplate(plan: QueryPlan): BuiltQuery {
   const from = plan.dateRange?.from;
   const to = plan.dateRange?.to;
+
+  if (plan.dataset === "branches" && plan.metric === "count") {
+    return {
+      sql: SQL_TEMPLATES.branchCount,
+      params: [],
+    };
+  }
+
+  if (plan.dataset === "customers" && plan.metric === "count") {
+    const segments = jsonList(plan.filters?.segments ?? ALL_SEGMENTS);
+    if (!plan.groupBy) {
+      return {
+        sql: SQL_TEMPLATES.customerCountOverall,
+        params: [segments],
+      };
+    }
+    if (sameGroupBy(plan, "segment")) {
+      return {
+        sql: SQL_TEMPLATES.customerCountBySegment,
+        params: [segments],
+      };
+    }
+    if (sameGroupBy(plan, "branch")) {
+      return {
+        sql: SQL_TEMPLATES.customerCountByBranch,
+        params: [segments],
+      };
+    }
+    throw new QueryBuilderError("Unsupported customer count grouping.");
+  }
 
   if (plan.dataset === "onboarding" && plan.metric === "count") {
     if (plan.dateGroupBy === "month") {

@@ -165,7 +165,32 @@ function wantsSegmentBreakdown(text: string): boolean {
 function wantsBranchBreakdown(text: string): boolean {
   return has(
     text,
-    /\bby\s+branch(?:es)?\b|\bbranch\s*wise\b|\bbranchwise\b|\beach\s+branch\b|\bper\s+branch\b|\bacross\s+branch(?:es)?\b|\bbreakdown\s+by\s+branch\b/,
+    /\bby\s+branch(?:es)?\b|\bbranch\s*wise\b|\bbranchwise\b|\beach\s+branch\b|\bper\s+branch\b|\bacross\s+branch(?:es)?\b|\bwhich\s+branch(?:es)?\b|\bwhat\s+branch(?:es)?\b|\bbranch(?:es)?\s+have\b|\bhighest\b.{0,60}\bbranch(?:es)?\b|\bbranch(?:es)?\b.{0,60}\bhighest\b/,
+  );
+}
+
+function mentionsBranch(text: string): boolean {
+  return has(text, /\bbranch(?:es)?\b/);
+}
+
+function mentionsCustomerNoun(text: string): boolean {
+  return has(text, /\bcustomers?\b/);
+}
+
+function askingBranchCount(text: string): boolean {
+  return has(
+    text,
+    /\b(?:how\s+many|number\s+of|count\s+of|total(?:\s+number\s+of)?|count(?:\s+the)?)\s+branch(?:es)?\b|\bbranch(?:es)?\s+(?:are\s+there|do\s+we\s+have|exist|in\s+total)\b/,
+  );
+}
+
+function askingCustomerCount(text: string): boolean {
+  return (
+    mentionsCustomerNoun(text) &&
+    has(
+      text,
+      /\bhow\s+many\b|\bnumber\s+of\b|\bcount\s+of\b|\btotal\s+number\b|\bcustomers?\s+(?:are\s+there|do\s+we\s+have|in\s+total)\b/,
+    )
   );
 }
 
@@ -173,13 +198,6 @@ function wantsCustomerBreakdown(text: string): boolean {
   return has(
     text,
     /\bby\s+customers?\b|\bper\s+customer\b|\beach\s+customer\b|\bcustomer\s*wise\b/,
-  );
-}
-
-function looksLikeOnboardingCount(text: string): boolean {
-  return has(
-    text,
-    /\bhow\s+many\b|\bcount\b|\bnumber\s+of\b|\bvolume\b|\btotal\b|\bgive\s+me\b|\bshow\b|\btell\s+me\b/,
   );
 }
 
@@ -204,6 +222,7 @@ function interpret(text: string): unknown | null {
   const rejectionRate = mentionsRejectionRate(text);
   const transactional = mentionsTransactions(text);
   const onboarding = mentionsOnboarding(text);
+  const onboardingIntent = onboarding || statuses.length > 0;
 
   const unknownDimension = /\bby\s+(?!segment|segments|branch|branches|customer|customers|month|transaction|transactions|value|amount)[a-z]+\b/.test(
     text,
@@ -212,25 +231,19 @@ function interpret(text: string): unknown | null {
     return null;
   }
 
+  if (topN === "invalid") {
+    return null;
+  }
+
   if (rejectionRate) {
     const plan: Record<string, unknown> = {
       dataset: "onboarding",
       metric: "rejection_rate",
     };
-    if (wantsBranchBreakdown(text)) {
+    if (wantsBranchBreakdown(text) || mentionsBranch(text)) {
       plan.groupBy = ["branch"];
     } else if (wantsSegmentBreakdown(text) || segments.length > 1) {
       plan.groupBy = ["segment"];
-    }
-    const filters = filtersFrom(
-      wantsSegmentBreakdown(text) || segments.length > 1 ? segments : segments,
-      [],
-    );
-    if (filters?.segments) {
-      plan.filters = { segments: filters.segments };
-      if (!plan.groupBy && segments.length > 1) {
-        plan.groupBy = ["segment"];
-      }
     }
     return plan;
   }
@@ -270,25 +283,7 @@ function interpret(text: string): unknown | null {
     };
   }
 
-  const canTreatAsOnboarding =
-    onboarding ||
-    wantsSegmentBreakdown(text) ||
-    wantsBranchBreakdown(text) ||
-    wantsMonthly(text) ||
-    segments.length > 0 ||
-    statuses.length > 0;
-
-  if (canTreatAsOnboarding && !transactional && !mentionsAverage(text)) {
-    if (
-      !onboarding &&
-      !looksLikeOnboardingCount(text) &&
-      !wantsSegmentBreakdown(text) &&
-      !wantsBranchBreakdown(text) &&
-      !wantsMonthly(text)
-    ) {
-      return null;
-    }
-
+  if (onboardingIntent && !transactional && !mentionsAverage(text)) {
     const plan: Record<string, unknown> = {
       dataset: "onboarding",
       metric: "count",
@@ -309,6 +304,59 @@ function interpret(text: string): unknown | null {
       plan.filters = filters;
     }
 
+    return plan;
+  }
+
+  if (askingBranchCount(text) && !onboardingIntent) {
+    if (wantsBranchBreakdown(text) || wantsSegmentBreakdown(text) || segments.length > 0) {
+      return null;
+    }
+    return {
+      dataset: "branches",
+      metric: "count",
+    };
+  }
+
+  const customerInventory =
+    askingCustomerCount(text) ||
+    (mentionsCustomerNoun(text) &&
+      (wantsSegmentBreakdown(text) || wantsBranchBreakdown(text)));
+
+  if (customerInventory && !onboardingIntent && !transactional) {
+    const plan: Record<string, unknown> = {
+      dataset: "customers",
+      metric: "count",
+    };
+    if (wantsSegmentBreakdown(text) || segments.length > 1) {
+      plan.groupBy = ["segment"];
+    } else if (wantsBranchBreakdown(text)) {
+      plan.groupBy = ["branch"];
+    }
+    const filters = filtersFrom(segments, []);
+    if (filters) {
+      plan.filters = filters;
+    }
+    return plan;
+  }
+
+  if (
+    !transactional &&
+    !mentionsAverage(text) &&
+    (wantsSegmentBreakdown(text) || segments.length > 0) &&
+    !mentionsCustomerNoun(text) &&
+    !askingBranchCount(text)
+  ) {
+    const plan: Record<string, unknown> = {
+      dataset: "onboarding",
+      metric: "count",
+    };
+    if (wantsSegmentBreakdown(text) || segments.length > 1) {
+      plan.groupBy = ["segment"];
+    }
+    const filters = filtersFrom(segments, []);
+    if (filters) {
+      plan.filters = filters;
+    }
     return plan;
   }
 

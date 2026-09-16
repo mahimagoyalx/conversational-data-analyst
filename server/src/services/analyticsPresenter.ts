@@ -63,6 +63,12 @@ function formatValue(plan: QueryPlan, value: number): string {
 }
 
 function valueColumnLabel(plan: QueryPlan): string {
+  if (plan.dataset === "branches") {
+    return "Branch count";
+  }
+  if (plan.dataset === "customers") {
+    return "Customer count";
+  }
   if (plan.metric === "rejection_rate") {
     return "Rejection rate";
   }
@@ -110,12 +116,27 @@ export function chooseVisualization(plan: QueryPlan): Visualization {
       title:
         plan.metric === "rejection_rate"
           ? "Rejection rate by branch"
-          : "Onboarding by branch",
+          : plan.dataset === "customers"
+            ? "Customers by branch"
+            : "Onboarding by branch",
     };
   }
 
   if (plan.groupBy?.[0] === "segment") {
-    return { type: "bar", title: "Onboarding by segment" };
+    return {
+      type: "bar",
+      title:
+        plan.dataset === "customers"
+          ? "Customers by segment"
+          : "Onboarding by segment",
+    };
+  }
+
+  if (plan.dataset === "branches") {
+    return { type: "kpi", title: "Number of branches" };
+  }
+  if (plan.dataset === "customers") {
+    return { type: "kpi", title: "Number of customers" };
   }
 
   if (plan.metric === "rejection_rate") {
@@ -166,6 +187,17 @@ export function buildAnswer(plan: QueryPlan, rows: AnalyticsRow[]): string {
     if (plan.metric === "sum") {
       return `Total transaction value is ${formatMoney(value)}.`;
     }
+    if (plan.dataset === "branches") {
+      return `There are ${formatCount(value)} branches.`;
+    }
+    if (plan.dataset === "customers") {
+      const segment =
+        plan.filters?.segments?.length === 1 ? plan.filters.segments[0] : undefined;
+      if (segment) {
+        return `There are ${formatCount(value)} ${segment} customers.`;
+      }
+      return `There are ${formatCount(value)} customers.`;
+    }
     const segment = plan.filters?.segments?.length === 1 ? plan.filters.segments[0] : undefined;
     const status = plan.filters?.statuses?.length === 1 ? plan.filters.statuses[0].toLowerCase() : undefined;
     if (segment && status) {
@@ -198,6 +230,13 @@ export function buildAnswer(plan: QueryPlan, rows: AnalyticsRow[]): string {
   if (plan.groupBy?.[0] === "customer" && plan.limit === undefined) {
     const top = rows[0];
     return `Transaction value by customer. Highest is ${top.label} at ${formatMoney(top.value as number)}.`;
+  }
+
+  if (plan.groupBy?.[0] === "branch" && plan.metric === "rejection_rate") {
+    const peak = rows.reduce((best, row) =>
+      (row.value ?? -Infinity) > (best.value ?? -Infinity) ? row : best,
+    );
+    return `${peak.label} has the highest rejection rate at ${formatRate(peak.value as number)}. Rejection rate by branch: ${parts.join(", ")}.`;
   }
 
   return `${chooseVisualization(plan).title}: ${parts.join(", ")}.`;

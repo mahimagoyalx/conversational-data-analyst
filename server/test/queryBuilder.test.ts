@@ -103,6 +103,20 @@ describe("QueryBuilder", () => {
         }).sql,
       ).toBe(SQL_TEMPLATES.transactionsTopCustomers);
     });
+
+    it("builds branch and customer inventory counts", () => {
+      expect(buildQuery({ dataset: "branches", metric: "count" })).toEqual({
+        sql: SQL_TEMPLATES.branchCount,
+        params: [],
+      });
+      expect(
+        buildQuery({
+          dataset: "customers",
+          metric: "count",
+          filters: { segments: ["Retail"] },
+        }).sql,
+      ).toBe(SQL_TEMPLATES.customerCountOverall);
+    });
   });
 
   describe("dynamic values are parameterized", () => {

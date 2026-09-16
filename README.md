@@ -60,4 +60,4 @@ See `server/src/db/DATA_DICTIONARY.md` for tables, columns, and relationships.
 
 ## Current scope
 
-Database schema, seed data, QueryPlan, planner, QueryBuilder, and the `/api/chat` analytics flow are implemented. Full UI is not implemented yet.
+Database schema, seed data, QueryPlan, planner, QueryBuilder, `/api/chat`, and the React chat UI are implemented.

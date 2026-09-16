@@ -78,6 +78,43 @@ describe("MockQueryPlanner", () => {
       });
     });
 
+    it("plans which branches have the highest rejection rate", () => {
+      expectEquivalent([
+        "Which branches have the highest rejection rate?",
+        "Show rejection rate by branch.",
+        "Give me the rejection rate across branches.",
+      ]);
+    });
+
+    it("plans the number of branches, not onboarding by branch", () => {
+      expectEquivalent([
+        "total number of branches?",
+        "How many branches are there?",
+        "What is the number of branches?",
+      ]);
+      expect(planOf("total number of branches?")).toEqual({
+        dataset: "branches",
+        metric: "count",
+      });
+    });
+
+    it("plans customer inventory separately from onboarding", () => {
+      expect(planOf("How many customers are there?")).toEqual({
+        dataset: "customers",
+        metric: "count",
+      });
+      expect(planOf("How many Retail customers are there?")).toEqual({
+        dataset: "customers",
+        metric: "count",
+        filters: { segments: ["Retail"] },
+      });
+      expect(planOf("Show customers by segment.")).toEqual({
+        dataset: "customers",
+        metric: "count",
+        groupBy: ["segment"],
+      });
+    });
+
     it("plans total transaction value", () => {
       expect(planOf("What's the total transaction value?")).toEqual({
         dataset: "transactions",
