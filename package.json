@@ -16,6 +16,7 @@
     "test": "npm run test -w server && npm run test -w client",
     "test:client": "npm run test -w client",
     "test:server": "npm run test -w server",
+    "db:setup": "npm run db:setup -w server",
     "start": "npm run start -w server"
   },
   "engines": {

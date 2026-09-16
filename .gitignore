@@ -6,6 +6,8 @@ coverage
 *.db
 *.sqlite
 *.sqlite3
+*.db-wal
+*.db-shm
 .DS_Store
 .vite
 *.tsbuildinfo

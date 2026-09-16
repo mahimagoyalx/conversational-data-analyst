@@ -36,6 +36,7 @@ The planner produces only a constrained, structured `QueryPlan`. A trusted Query
 ```bash
 npm install
 cp .env.example .env
+npm run db:setup
 ```
 
 ## Scripts
@@ -47,9 +48,16 @@ cp .env.example .env
 | `npm run build` | Build frontend and backend |
 | `npm run build:client` | Build frontend only |
 | `npm run build:server` | Build backend only |
+| `npm run db:setup` | Create SQLite database, apply schema, load seed data |
 | `npm test` | Run frontend and backend tests |
 | `npm run start` | Run the compiled backend |
 
+## Data
+
+SQLite stores synthetic banking data for branches, customers, onboarding applications, and transactions. The generated `*.db` file is local-only and is not committed.
+
+See `server/src/db/DATA_DICTIONARY.md` for tables, columns, and relationships.
+
 ## Current scope
 
-This repository currently contains the project scaffold only: install, run, test, and build. Database schema, seed data, Query Planner, Query Builder, API, and full UI are not implemented yet.
+Database schema, seed data, and project scaffold are implemented. Query Planner, Query Builder, API, and full UI are not implemented yet.
