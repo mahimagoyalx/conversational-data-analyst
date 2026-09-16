@@ -60,4 +60,4 @@ See `server/src/db/DATA_DICTIONARY.md` for tables, columns, and relationships.
 
 ## Current scope
 
-Database schema, seed data, and project scaffold are implemented. Query Planner, Query Builder, API, and full UI are not implemented yet.
+Database schema, seed data, and the structured `QueryPlan` contract are implemented. Query Planner, Query Builder, API, and full UI are not implemented yet.
