@@ -1,6 +1,6 @@
 # Conversational Data Analyst
 
-Technical screening submission: a small full-stack app that answers natural-language questions about synthetic banking data using a constrained analytics pipeline.
+A full-stack app that answers natural-language questions about synthetic banking data using a constrained analytics pipeline.
 
 ## 1. Project overview
 
