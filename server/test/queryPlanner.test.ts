@@ -268,13 +268,99 @@ describe("MockQueryPlanner", () => {
     });
   });
 
+  describe("screening-assignment phrasings", () => {
+    it("maps equivalent onboarding count questions to the same plan", () => {
+      expectEquivalent([
+        "How many Retail customers were onboarded?",
+        "What's the Retail onboarding volume?",
+        "Give me the number of Retail onboarding applications.",
+      ]);
+      expect(planOf("How many Retail customers were onboarded?")).toEqual({
+        dataset: "onboarding",
+        metric: "count",
+        filters: { segments: ["Retail"] },
+      });
+    });
+
+    it("maps equivalent segment breakdown questions to the same plan", () => {
+      expectEquivalent([
+        "Show onboarding volume by segment.",
+        "Give me a segment-wise breakdown of onboarding.",
+      ]);
+      expect(planOf("Show onboarding volume by segment.")).toEqual({
+        dataset: "onboarding",
+        metric: "count",
+        groupBy: ["segment"],
+      });
+    });
+
+    it("plans a Retail vs SME onboarding comparison", () => {
+      expect(planOf("Compare Retail and SME onboarding.")).toEqual({
+        dataset: "onboarding",
+        metric: "count",
+        groupBy: ["segment"],
+        filters: { segments: ["Retail", "SME"] },
+      });
+    });
+
+    it("plans the highest rejection rate by branch", () => {
+      expect(planOf("Which branches have the highest rejection rate?")).toEqual({
+        dataset: "onboarding",
+        metric: "rejection_rate",
+        groupBy: ["branch"],
+      });
+    });
+
+    it("plans rejected application count", () => {
+      expect(planOf("How many applications were rejected?")).toEqual({
+        dataset: "onboarding",
+        metric: "count",
+        filters: { statuses: ["Rejected"] },
+      });
+    });
+
+    it("plans total and average transaction value", () => {
+      expect(planOf("What is the total transaction value?")).toEqual({
+        dataset: "transactions",
+        metric: "sum",
+      });
+      expect(planOf("What's the average transaction value?")).toEqual({
+        dataset: "transactions",
+        metric: "average",
+      });
+    });
+
+    it("plans top-N customers by transaction value", () => {
+      expect(planOf("Show the top five customers by transaction value.")).toEqual({
+        dataset: "transactions",
+        metric: "sum",
+        groupBy: ["customer"],
+        limit: 5,
+      });
+      expect(planOf("Show the top 3 customers by transaction value.")).toEqual({
+        dataset: "transactions",
+        metric: "sum",
+        groupBy: ["customer"],
+        limit: 3,
+      });
+    });
+  });
+
   describe("unsupported questions", () => {
     it("rejects questions outside the supported analytics", () => {
       expectUnsupported("What's the weather in Mumbai?");
       expectUnsupported("Show onboarding by city.");
       expectUnsupported("What's the average onboarding time?");
       expectUnsupported("How many transactions were there?");
+    });
+
+    it("rejects SQL and destructive statements instead of planning them", () => {
+      expectUnsupported("DROP TABLE customers");
+      expectUnsupported("DELETE FROM customers");
+      expectUnsupported("UPDATE customers SET segment='Corporate'");
       expectUnsupported("SELECT * FROM customers");
+      expectUnsupported("Show onboarding; DROP TABLE customers");
+      expectUnsupported("DROP TABLE transactions");
     });
 
     it("rejects empty questions", () => {

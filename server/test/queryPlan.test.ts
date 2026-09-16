@@ -149,6 +149,22 @@ describe("QueryPlan contract", () => {
     });
   });
 
+  describe("invalid datasets", () => {
+    it("rejects values outside the dataset enum", () => {
+      expectInvalid({ dataset: "accounts", metric: "count" });
+      expectInvalid({ dataset: "onboarding_applications", metric: "count" });
+      expectInvalid({ dataset: "customers; DROP TABLE customers", metric: "count" });
+    });
+  });
+
+  describe("invalid metrics", () => {
+    it("rejects values outside the metric enum", () => {
+      expectInvalid({ dataset: "onboarding", metric: "median" });
+      expectInvalid({ dataset: "transactions", metric: "min" });
+      expectInvalid({ dataset: "onboarding", metric: "SELECT COUNT(*)" });
+    });
+  });
+
   describe("invalid dataset/metric combinations", () => {
     it("rejects sum on onboarding", () => {
       expectInvalid(
@@ -174,6 +190,21 @@ describe("QueryPlan contract", () => {
     it("rejects rejection_rate on transactions", () => {
       expectInvalid(
         { dataset: "transactions", metric: "rejection_rate" },
+        'Metric "rejection_rate" only applies to the onboarding dataset',
+      );
+    });
+
+    it("rejects incompatible inventory metrics", () => {
+      expectInvalid(
+        { dataset: "branches", metric: "sum" },
+        "The branches dataset only supports the count metric",
+      );
+      expectInvalid(
+        { dataset: "customers", metric: "average" },
+        "The customers dataset only supports the count metric",
+      );
+      expectInvalid(
+        { dataset: "customers", metric: "rejection_rate" },
         'Metric "rejection_rate" only applies to the onboarding dataset',
       );
     });
@@ -216,6 +247,30 @@ describe("QueryPlan contract", () => {
         metric: "count",
         filters: { segments: [] },
       });
+    });
+
+    it("rejects unknown status values and extra filter keys", () => {
+      expectInvalid({
+        dataset: "onboarding",
+        metric: "count",
+        filters: { statuses: ["Cancelled"] },
+      });
+      expectInvalid({
+        dataset: "onboarding",
+        metric: "count",
+        filters: { segments: ["Retail"], city: "Mumbai" },
+      });
+    });
+
+    it("rejects status filters on customers", () => {
+      expectInvalid(
+        {
+          dataset: "customers",
+          metric: "count",
+          filters: { statuses: ["Approved"] },
+        },
+        "Status filters only apply to the onboarding dataset",
+      );
     });
   });
 
@@ -275,6 +330,41 @@ describe("QueryPlan contract", () => {
       );
     });
 
+    it("rejects empty or unknown groupBy dimensions", () => {
+      expectInvalid({
+        dataset: "onboarding",
+        metric: "count",
+        groupBy: [],
+      });
+      expectInvalid({
+        dataset: "onboarding",
+        metric: "count",
+        groupBy: ["city"],
+      });
+    });
+
+    it("rejects grouping on branch inventory", () => {
+      expectInvalid(
+        {
+          dataset: "branches",
+          metric: "count",
+          groupBy: ["branch"],
+        },
+        "Branch count is an aggregate KPI and does not support grouping or filters",
+      );
+    });
+
+    it("rejects customer grouping other than segment or branch", () => {
+      expectInvalid(
+        {
+          dataset: "customers",
+          metric: "count",
+          groupBy: ["customer"],
+        },
+        "Customer count grouping only supports segment or branch",
+      );
+    });
+
     it("rejects date grouping outside onboarding count queries", () => {
       expectInvalid(
         {
@@ -309,6 +399,18 @@ describe("QueryPlan contract", () => {
         metric: "sum",
         groupBy: ["customer"],
         limit: 11,
+      });
+      expectInvalid({
+        dataset: "transactions",
+        metric: "sum",
+        groupBy: ["customer"],
+        limit: 2.5,
+      });
+      expectInvalid({
+        dataset: "transactions",
+        metric: "sum",
+        groupBy: ["customer"],
+        limit: "5",
       });
     });
 
@@ -366,6 +468,24 @@ describe("QueryPlan contract", () => {
         },
         "`dateRange.from` must not be after `dateRange.to`",
       );
+    });
+
+    it("rejects extra dateRange keys and date grouping on inventory datasets", () => {
+      expectInvalid({
+        dataset: "onboarding",
+        metric: "count",
+        dateRange: { from: "2025-01-01", sql: "1=1" },
+      });
+      expectInvalid({
+        dataset: "customers",
+        metric: "count",
+        dateRange: { from: "2025-01-01" },
+      });
+      expectInvalid({
+        dataset: "branches",
+        metric: "count",
+        dateRange: { to: "2025-12-31" },
+      });
     });
   });
 

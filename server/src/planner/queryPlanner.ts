@@ -104,6 +104,13 @@ function parseLimitToken(token: string): number | undefined {
   return undefined;
 }
 
+function looksLikeSql(text: string): boolean {
+  return has(
+    text,
+    /\b(select|insert|update|delete|drop|alter|attach|detach|pragma|create|truncate|replace|union)\b/,
+  );
+}
+
 function extractTopN(text: string): number | "invalid" | undefined {
   const explicit = text.match(
     /\btop\s+(ten|nine|eight|seven|six|five|four|three|two|one|\d+)\b/,
@@ -216,6 +223,10 @@ function filtersFrom(
 }
 
 function interpret(text: string): unknown | null {
+  if (looksLikeSql(text)) {
+    return null;
+  }
+
   const segments = extractSegments(text);
   const statuses = extractStatuses(text);
   const topN = extractTopN(text);

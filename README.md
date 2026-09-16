@@ -52,6 +52,8 @@ npm run db:setup
 | `npm test` | Run frontend and backend tests |
 | `npm run start` | Run the compiled backend |
 
+Swagger UI is available at http://127.0.0.1:3001/api/docs while the server is running. The OpenAPI document is at http://127.0.0.1:3001/api/openapi.json.
+
 ## Data
 
 SQLite stores synthetic banking data for branches, customers, onboarding applications, and transactions. The generated `*.db` file is local-only and is not committed.

@@ -161,6 +161,20 @@ describe("QueryBuilder", () => {
       expect(built.sql).not.toContain("LIMIT 5");
       expect(built.params.at(-1)).toBe(5);
     });
+
+    it("never copies the original question or raw SQL into the statement", () => {
+      const built = buildQuery({
+        dataset: "onboarding",
+        metric: "count",
+        filters: { segments: ["Retail"] },
+      });
+      expect(Object.values(SQL_TEMPLATES)).toContain(built.sql);
+      expect(built.sql).not.toContain("How many Retail customers were onboarded?");
+      expect(built.sql).not.toMatch(/DROP|DELETE|UPDATE|INSERT|;|--/i);
+      expect(built.params.every((param) => typeof param !== "string" || !/;/.test(param))).toBe(
+        true,
+      );
+    });
   });
 
   describe("unsupported plans are rejected", () => {
@@ -204,6 +218,15 @@ describe("QueryBuilder", () => {
       expect(() => buildQuery("SELECT * FROM customers")).toThrow(
         QueryBuilderError,
       );
+      expect(() => buildQuery("DROP TABLE customers")).toThrow(QueryBuilderError);
+      expect(() => buildQuery("DELETE FROM customers")).toThrow(QueryBuilderError);
+      expect(() =>
+        buildQuery("UPDATE customers SET segment='Corporate'"),
+      ).toThrow(QueryBuilderError);
+      expect(() =>
+        buildQuery("Show onboarding; DROP TABLE customers"),
+      ).toThrow(QueryBuilderError);
+      expect(() => buildQuery("DROP TABLE transactions")).toThrow(QueryBuilderError);
       expect(() =>
         buildQuery({
           dataset: "onboarding",
@@ -250,6 +273,16 @@ describe("QueryBuilder", () => {
       expect(built.sql).not.toMatch(/DROP|DELETE|;|--/i);
       expect(built.params.join(" ")).toContain("Retail");
       expect(built.sql).not.toContain("Retail");
+    });
+
+    it("rejects SQL payloads in date ranges instead of interpolating them", () => {
+      expect(() =>
+        buildQuery({
+          dataset: "onboarding",
+          metric: "count",
+          dateRange: { from: "2025-01-01'; DROP TABLE customers;--" },
+        }),
+      ).toThrow(QueryBuilderError);
     });
 
     it("executes trusted SELECT queries without changing the database", () => {

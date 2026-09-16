@@ -1,9 +1,12 @@
 import { Router } from "express";
+import { mountApiDocs } from "../docs/swagger.js";
 import { ChatRequestSchema } from "../schemas/chatRequest.js";
 import type { ChatService } from "../services/chatService.js";
 
 export function createApiRouter(chatService: ChatService) {
   const router = Router();
+
+  mountApiDocs(router);
 
   router.get("/health", (_req, res) => {
     res.json({

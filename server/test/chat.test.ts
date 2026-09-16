@@ -63,6 +63,24 @@ describe("API", () => {
     });
   });
 
+  it("serves OpenAPI and Swagger UI", async () => {
+    const baseUrl = await listen(seededApp());
+    const specResponse = await fetch(`${baseUrl}/api/openapi.json`);
+    expect(specResponse.status).toBe(200);
+    const spec = (await specResponse.json()) as {
+      openapi: string;
+      paths: Record<string, unknown>;
+    };
+    expect(spec.openapi).toMatch(/^3\./);
+    expect(spec.paths["/api/health"]).toBeDefined();
+    expect(spec.paths["/api/chat"]).toBeDefined();
+
+    const docsResponse = await fetch(`${baseUrl}/api/docs/`);
+    expect(docsResponse.status).toBe(200);
+    expect(docsResponse.headers.get("content-type") ?? "").toMatch(/html/);
+    expect(await docsResponse.text()).toMatch(/swagger/i);
+  });
+
   it("answers a valid onboarding question", async () => {
     const baseUrl = await listen(seededApp());
     const { status, body } = await postChat(baseUrl, {
@@ -175,13 +193,13 @@ describe("API", () => {
 
   it("maps malformed planner output to a client-safe failure", async () => {
     const planner: QueryPlanner = {
-      plan(): PlannerResult {
+      plan() {
         return {
           ok: true,
           plan: {
             dataset: "onboarding",
             sql: "SELECT * FROM customers",
-          } as QueryPlan,
+          } as unknown as QueryPlan,
         };
       },
     };
@@ -199,5 +217,54 @@ describe("API", () => {
       },
     });
     expect(JSON.stringify(body)).not.toContain("SELECT");
+  });
+
+  it("rejects malformed JSON with a client-safe error", async () => {
+    const baseUrl = await listen(seededApp());
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{not json",
+    });
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      success: false,
+      error: {
+        code: "invalid_request",
+        message: "Request body must be a JSON object with a non-empty question.",
+      },
+    });
+    expect(JSON.stringify(body)).not.toMatch(/SyntaxError|stack|at /);
+  });
+
+  it("maps an unbuildable planner plan to a client-safe failure", async () => {
+    const planner: QueryPlanner = {
+      plan() {
+        return {
+          ok: true,
+          plan: {
+            dataset: "onboarding",
+            metric: "rejection_rate",
+            groupBy: ["segment"],
+          },
+        };
+      },
+    };
+    const baseUrl = await listen(seededApp(planner));
+    const { status, body } = await postChat(baseUrl, {
+      question: "Show rejection rate by segment.",
+    });
+
+    expect(status).toBe(500);
+    expect(body).toEqual({
+      success: false,
+      error: {
+        code: "invalid_plan",
+        message: "I couldn't answer that question with the available analytics.",
+      },
+    });
+    expect(JSON.stringify(body)).not.toMatch(/SELECT|QueryBuilder|stack/i);
   });
 });
