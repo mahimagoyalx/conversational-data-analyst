@@ -1,0 +1,27 @@
+{
+  "name": "conversational-data-analyst",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Technical screening assignment: ask natural-language questions about synthetic banking data.",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev -w client",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w server && npm run build -w client",
+    "build:client": "npm run build -w client",
+    "build:server": "npm run build -w server",
+    "test": "npm run test -w server && npm run test -w client",
+    "test:client": "npm run test -w client",
+    "test:server": "npm run test -w server",
+    "start": "npm run start -w server"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
